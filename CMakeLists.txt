@@ -16,36 +16,19 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
 PROJECT(YetAnotherJSONParser C)
 
+option(BUILD_TOOLS "Enables building of utilities" OFF)
+option(BUILD_EXAMPLES "Enabled building of examples" OFF)
+
 SET (YAJL_MAJOR 2)
 SET (YAJL_MINOR 1)
 SET (YAJL_MICRO 1)
 
 SET (YAJL_DIST_NAME "yajl-${YAJL_MAJOR}.${YAJL_MINOR}.${YAJL_MICRO}")
 
-IF (NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE "Release")
-ENDIF (NOT CMAKE_BUILD_TYPE)
-
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-
+if(MSVC)
+    set(CMAKE_DEBUG_POSTFIX "d")
+endif()
 IF (WIN32)
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4")
-  ADD_DEFINITIONS(-DWIN32)
-  SET(linkFlags "/PDB:NONE /INCREMENTAL:NO /OPT:NOREF /OPT:NOICF")
-  SET(CMAKE_EXE_LINKER_FLAGS    "${linkFlags}"
-      CACHE STRING "YAJL linker flags" FORCE)
-  SET(CMAKE_EXE_LINKER_FLAGS_DEBUG ""
-      CACHE STRING "YAJL debug linker flags" FORCE)
-  SET(CMAKE_EXE_LINKER_FLAGS_RELEASE
-      CACHE STRING "YAJL release linker flags" FORCE)
-  SET(CMAKE_SHARED_LINKER_FLAGS "${linkFlags}"
-      CACHE STRING "YAJL shared linker flags" FORCE)
-  SET(CMAKE_MODULE_LINKER_FLAGS "${linkFlags}"
-      CACHE STRING "YAJL module linker flags" FORCE)
-
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4996 /wd4255 /wd4130 /wd4100 /wd4711")
-  SET(CMAKE_C_FLAGS_DEBUG "/D DEBUG /Od /Z7")
-  SET(CMAKE_C_FLAGS_RELEASE "/D NDEBUG /O2")
 ELSE (WIN32)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
   IF(CMAKE_COMPILER_IS_GNUCC)
@@ -62,20 +45,92 @@ ELSE (WIN32)
   SET(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O2 -Wuninitialized")
 ENDIF (WIN32)
 
+SET (SRCS
+    src/yajl.c
+    src/yajl_lex.c
+    src/yajl_parser.c
+    src/yajl_buf.c
+    src/yajl_encode.c
+    src/yajl_gen.c
+    src/yajl_alloc.c
+    src/yajl_tree.c
+    src/yajl_version.c
+)
 
-ADD_SUBDIRECTORY(src)
-ADD_SUBDIRECTORY(test)
-ADD_SUBDIRECTORY(reformatter)
-ADD_SUBDIRECTORY(verify)
-ADD_SUBDIRECTORY(example)
-ADD_SUBDIRECTORY(perf)
+# useful when fixing lexer bugs.
+#ADD_DEFINITIONS(-DYAJL_LEXER_DEBUG)
+
+ADD_LIBRARY(yajl ${SRCS}) 
+target_include_directories(yajl PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  PRIVATE .)
+#### setup shared library version number
+SET_TARGET_PROPERTIES(yajl PROPERTIES
+                      DEFINE_SYMBOL YAJL_SHARED
+                      SOVERSION ${YAJL_MAJOR}
+                      VERSION ${YAJL_MAJOR}.${YAJL_MINOR}.${YAJL_MICRO})
+
+#### ensure a .dylib has correct absolute installation paths upon installation
+IF(APPLE)
+  MESSAGE("INSTALL_NAME_DIR: ${CMAKE_INSTALL_PREFIX}/lib")
+  SET_TARGET_PROPERTIES(yajl PROPERTIES
+                        INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/lib")
+ENDIF(APPLE)
+
+if(MSVC)
+    target_compile_definitions(yajl PUBLIC WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE YAJL_BUILD)
+endif()
+
+# generate build-time source
+CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/include/yajl/yajl_version.h.cmake
+    ${CMAKE_SOURCE_DIR}/include/yajl/yajl_version.h)
+CONFIGURE_FILE(src/yajl.pc.cmake yajl.pc)
+
+if(BUILD_TOOLS)
+    add_executable(json_reformat reformatter/json_reformat.c)
+    target_link_libraries(json_reformat yajl)
+
+    add_executable(json_verify verify/json_verify.c)
+    target_link_libraries(json_verify yajl)
+endif()
+
+if(BUILD_EXAMPLES)
+    add_executable(parse_config example/parse_config.c)
+    target_link_libraries(parse_config yajl)
+endif()
+
+enable_testing()
+add_executable(yajl_test test/parsing/yajl_test.c)
+target_link_libraries(yajl_test yajl)
+add_test(yajl_test yajl_test
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/parsing)
+
+# ADD_SUBDIRECTORY(test)
+# ADD_SUBDIRECTORY(perf)
 
 INCLUDE(YAJLDoc.cmake)
 
 # a test target
-ADD_CUSTOM_TARGET(test
-                  ./run_tests.sh ${CMAKE_CURRENT_BINARY_DIR}/test/parsing/yajl_test
-                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/parsing)
+# ADD_CUSTOM_TARGET(test
+#                   ./run_tests.sh ${CMAKE_CURRENT_BINARY_DIR}/test/parsing/yajl_test
+#                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/parsing)
 
 ADD_CUSTOM_TARGET(test-api ${CMAKE_CURRENT_SOURCE_DIR}/test/api/run_tests.sh
                   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test/api)
+
+INSTALL(TARGETS yajl
+  RUNTIME DESTINATION bin
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib)
+INSTALL(DIRECTORY include/ DESTINATION include)
+install(FILES ${CMAKE_BINARY_DIR}/yajl.pc DESTINATION share)
+
+if(BUILD_TOOLS)
+    install(TARGETS json_reformat json_verify
+        RUNTIME DESTINATION bin)
+endif()
+if(BUILD_EXAMPLES)
+    install(TARGETS parse_config
+        RUNTIME DESTINATION bin)
+endif()

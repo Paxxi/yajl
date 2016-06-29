@@ -16,8 +16,6 @@ SET (SRCS yajl.c yajl_lex.c yajl_parser.c yajl_buf.c
           yajl_encode.c yajl_gen.c yajl_alloc.c
           yajl_tree.c yajl_version.c
 )
-SET (HDRS yajl_parser.h yajl_lex.h yajl_buf.h yajl_encode.h yajl_alloc.h)
-SET (PUB_HDRS yajl/yajl_parse.h yajl/yajl_gen.h yajl/yajl_common.h yajl/yajl_tree.h)
 
 # useful when fixing lexer bugs.
 #ADD_DEFINITIONS(-DYAJL_LEXER_DEBUG)
