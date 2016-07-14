@@ -12,9 +12,9 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
-PROJECT(YetAnotherJSONParser C)
+PROJECT(YetAnotherJSONParser VERSION 2.1.1 LANGUAGES C)
 
 option(BUILD_TOOLS "Enables building of utilities" OFF)
 option(BUILD_EXAMPLES "Enabled building of examples" OFF)
@@ -22,13 +22,19 @@ option(BUILD_EXAMPLES "Enabled building of examples" OFF)
 SET (YAJL_MAJOR 2)
 SET (YAJL_MINOR 1)
 SET (YAJL_MICRO 1)
+set(CPACK_PACKAGE_NAME "yajl")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_VERSION_MAJOR ${YAJL_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${YAJL_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${YAJL_MICRO})
+set(CPACK_GENERATOR "7Z")
+
+include(CPack)
 
 SET (YAJL_DIST_NAME "yajl-${YAJL_MAJOR}.${YAJL_MINOR}.${YAJL_MICRO}")
 
-if(MSVC)
-    set(CMAKE_DEBUG_POSTFIX "d")
-endif()
 IF (WIN32)
+    set(CMAKE_DEBUG_POSTFIX "d")
 ELSE (WIN32)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
   IF(CMAKE_COMPILER_IS_GNUCC)
@@ -61,8 +67,9 @@ SET (SRCS
 #ADD_DEFINITIONS(-DYAJL_LEXER_DEBUG)
 
 ADD_LIBRARY(yajl ${SRCS}) 
-target_include_directories(yajl PRIVATE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_BINARY_DIR}/include>
+target_include_directories(yajl
+  PRIVATE
+  $<BUILD_INTERFACE:include/;${CMAKE_CURRENT_BINARY_DIR}/include>
   INTERFACE
   $<INSTALL_INTERFACE:include/yajl>
   )
@@ -104,6 +111,10 @@ endif()
 enable_testing()
 add_executable(yajl_test test/parsing/yajl_test.c)
 target_link_libraries(yajl_test yajl)
+target_include_directories(yajl_test
+  PRIVATE
+  $<BUILD_INTERFACE:include/;${CMAKE_CURRENT_BINARY_DIR}/include>
+)
 add_test(yajl_test yajl_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/parsing)
 
@@ -119,6 +130,13 @@ INCLUDE(YAJLDoc.cmake)
 
 ADD_CUSTOM_TARGET(test-api ${CMAKE_CURRENT_SOURCE_DIR}/test/api/run_tests.sh
                   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test/api)
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/yajl-config-version.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
 
 INSTALL(TARGETS yajl EXPORT yajl
   RUNTIME DESTINATION bin
@@ -141,7 +159,7 @@ install(
     lib/cmake/yajl
 )
 
-export(TARGET yajl
+export(TARGETS yajl
     FILE yajl.cmake
     NAMESPACE yajl::
 )
