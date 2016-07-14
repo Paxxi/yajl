@@ -61,10 +61,11 @@ SET (SRCS
 #ADD_DEFINITIONS(-DYAJL_LEXER_DEBUG)
 
 ADD_LIBRARY(yajl ${SRCS}) 
-target_include_directories(yajl PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-  PRIVATE .)
+target_include_directories(yajl PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_BINARY_DIR}/include>
+  INTERFACE
+  $<INSTALL_INTERFACE:include/yajl>
+  )
 #### setup shared library version number
 SET_TARGET_PROPERTIES(yajl PROPERTIES
                       DEFINE_SYMBOL YAJL_SHARED
@@ -79,12 +80,12 @@ IF(APPLE)
 ENDIF(APPLE)
 
 if(MSVC)
-    target_compile_definitions(yajl PUBLIC WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE YAJL_BUILD)
+    target_compile_definitions(yajl PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE YAJL_BUILD)
 endif()
 
 # generate build-time source
-CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/include/yajl/yajl_version.h.cmake
-    ${CMAKE_SOURCE_DIR}/include/yajl/yajl_version.h)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/include/yajl/yajl_version.h.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/include/yajl/yajl_version.h)
 CONFIGURE_FILE(src/yajl.pc.cmake yajl.pc)
 
 if(BUILD_TOOLS)
@@ -104,7 +105,7 @@ enable_testing()
 add_executable(yajl_test test/parsing/yajl_test.c)
 target_link_libraries(yajl_test yajl)
 add_test(yajl_test yajl_test
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/parsing)
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/parsing)
 
 # ADD_SUBDIRECTORY(test)
 # ADD_SUBDIRECTORY(perf)
@@ -119,12 +120,41 @@ INCLUDE(YAJLDoc.cmake)
 ADD_CUSTOM_TARGET(test-api ${CMAKE_CURRENT_SOURCE_DIR}/test/api/run_tests.sh
                   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test/api)
 
-INSTALL(TARGETS yajl
+INSTALL(TARGETS yajl EXPORT yajl
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib)
-INSTALL(DIRECTORY include/ DESTINATION include)
-install(FILES ${CMAKE_BINARY_DIR}/yajl.pc DESTINATION share)
+  ARCHIVE DESTINATION lib
+)
+install(EXPORT yajl
+  FILE
+    yajl.cmake
+  NAMESPACE
+    yajl::
+  DESTINATION
+    lib/cmake/yajl
+)
+install(
+  FILES
+    cmake/yajl-config.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/yajl-config-version.cmake
+  DESTINATION
+    lib/cmake/yajl
+)
+
+export(TARGET yajl
+    FILE yajl.cmake
+    NAMESPACE yajl::
+)
+
+install(DIRECTORY
+    include/
+    DESTINATION include
+ )
+install(FILES 
+    ${CMAKE_CURRENT_BINARY_DIR}/include/yajl/yajl_version.h
+    DESTINATION include/yajl)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/yajl.pc DESTINATION share)
+
 
 if(BUILD_TOOLS)
     install(TARGETS json_reformat json_verify
